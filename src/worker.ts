@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { registerTools } from "./tools.js";
+import { registerDemoTools } from "./demo-tools.js";
 
 function createServer(apiToken: string, enableWrites: boolean): McpServer {
   const server = new McpServer({
@@ -13,12 +14,44 @@ function createServer(apiToken: string, enableWrites: boolean): McpServer {
   return server;
 }
 
+function createDemoServer(): McpServer {
+  const server = new McpServer({
+    name: "parsely-demo",
+    version: "1.0.0",
+  });
+
+  registerDemoTools(server);
+
+  return server;
+}
+
+async function handleMcp(request: Request, server: McpServer): Promise<Response> {
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+
+  await server.connect(transport);
+
+  try {
+    return await transport.handleRequest(request);
+  } finally {
+    await transport.close();
+    await server.close();
+  }
+}
+
 export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
       return new Response("ok");
+    }
+
+    // Demo endpoint — no auth required
+    if (url.pathname === "/mcp/demo") {
+      return handleMcp(request, createDemoServer());
     }
 
     const enableWrites = url.pathname === "/mcp/write";
@@ -35,19 +68,6 @@ export default {
     }
     const apiToken = authHeader.slice(7);
 
-    const server = createServer(apiToken, enableWrites);
-    const transport = new WebStandardStreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true,
-    });
-
-    await server.connect(transport);
-
-    try {
-      return await transport.handleRequest(request);
-    } finally {
-      await transport.close();
-      await server.close();
-    }
+    return handleMcp(request, createServer(apiToken, enableWrites));
   },
 };
