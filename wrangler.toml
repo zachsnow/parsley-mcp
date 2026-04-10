@@ -1,10 +1,10 @@
-name = "parsely-mcp"
+name = "parsley-mcp"
 main = "src/worker.ts"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
 routes = [
-  { pattern = "parsely.vein.io", custom_domain = true }
+  { pattern = "parsley.vein.io", custom_domain = true }
 ]
 
 rules = [

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Parsely MCP Server</title>
+  <title>Parsley MCP Server</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 640px; margin: 0 auto; padding: 2rem 1rem; }
@@ -19,18 +19,18 @@
   </style>
 </head>
 <body>
-  <h1>Parsely MCP Server <span style="font-size:0.75rem;font-weight:normal;color:#999">v__VERSION__</span></h1>
-  <p class="subtitle">Access your <a href="https://www.parsleycooks.com">Parsely</a> recipes, menus, ingredients, and events from any MCP client.</p>
+  <h1>Parsley MCP Server <span style="font-size:0.75rem;font-weight:normal;color:#999">v__VERSION__</span></h1>
+  <p class="subtitle">Access your <a href="https://www.parsleycooks.com">Parsley</a> recipes, menus, ingredients, and events from any MCP client.</p>
 
   <h2>Remote (Hosted)</h2>
-  <p>Point your MCP client at the hosted endpoint. You'll need a <a href="https://app.parsleycooks.com">Parsely API token</a> as the bearer token.</p>
+  <p>Point your MCP client at the hosted endpoint. You'll need a <a href="https://app.parsleycooks.com">Parsley API token</a> as the bearer token.</p>
   <pre><code>{
   "mcpServers": {
-    "parsely": {
+    "parsley": {
       "type": "streamable-http",
-      "url": "https://parsely.vein.io/mcp",
+      "url": "https://parsley.vein.io/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_PARSELY_API_TOKEN"
+        "Authorization": "Bearer YOUR_PARSLEY_API_TOKEN"
       }
     }
   }
@@ -41,11 +41,11 @@
   <p>Run the server locally via npx:</p>
   <pre><code>{
   "mcpServers": {
-    "parsely": {
+    "parsley": {
       "command": "npx",
-      "args": ["-y", "parsely-mcp"],
+      "args": ["-y", "parsley-mcp"],
       "env": {
-        "PARSELY_API_TOKEN": "YOUR_PARSELY_API_TOKEN"
+        "PARSLEY_API_TOKEN": "YOUR_PARSLEY_API_TOKEN"
       }
     }
   }

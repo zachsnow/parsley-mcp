@@ -7,7 +7,7 @@ import INDEX_HTML from "./index.html";
 
 function createServer(apiToken: string, enableWrites: boolean): McpServer {
   const server = new McpServer({
-    name: "parsely",
+    name: "parsley",
     version: VERSION,
   });
 
@@ -18,7 +18,7 @@ function createServer(apiToken: string, enableWrites: boolean): McpServer {
 
 function createDemoServer(): McpServer {
   const server = new McpServer({
-    name: "parsely-demo",
+    name: "parsley-demo",
     version: VERSION,
   });
 
@@ -77,7 +77,7 @@ export default {
     const apiToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : url.searchParams.get("token");
     if (!apiToken) {
       return new Response(
-        JSON.stringify({ error: "Missing API token. Provide a Parsely API token via Authorization: Bearer header or ?token= query parameter." }),
+        JSON.stringify({ error: "Missing API token. Provide a Parsley API token via Authorization: Bearer header or ?token= query parameter." }),
         { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }

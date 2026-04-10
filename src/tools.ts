@@ -34,7 +34,7 @@ export async function parsleyFetch(
 
   if (!resp.ok) {
     const errorText = await resp.text();
-    throw new Error(`Parsely API error ${resp.status}: ${errorText}`);
+    throw new Error(`Parsley API error ${resp.status}: ${errorText}`);
   }
 
   const contentType = resp.headers.get("content-type") || "";

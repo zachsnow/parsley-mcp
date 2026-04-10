@@ -1,10 +1,10 @@
 {
-  "name": "parsely-mcp",
+  "name": "parsley-mcp",
   "version": "0.1.0",
   "description": "",
   "main": "dist/index.js",
   "bin": {
-    "parsely-mcp": "dist/index.js"
+    "parsley-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc && tsc -p tsconfig.worker.json",
