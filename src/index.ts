@@ -4,13 +4,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { registerTools } from "./tools.js";
+import { VERSION } from "./version.js";
 
 const enableWrites = process.argv.includes("--enable-writes");
 let apiToken: string | undefined = process.env.PARSELY_API_TOKEN;
 
 const server = new McpServer({
   name: "parsely",
-  version: "1.0.0",
+  version: VERSION,
 });
 
 server.tool(

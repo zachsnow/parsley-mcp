@@ -2,12 +2,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { registerTools } from "./tools.js";
 import { registerDemoTools } from "./demo-tools.js";
+import { VERSION } from "./version.js";
 import INDEX_HTML from "./index.html";
 
 function createServer(apiToken: string, enableWrites: boolean): McpServer {
   const server = new McpServer({
     name: "parsely",
-    version: "1.0.0",
+    version: VERSION,
   });
 
   registerTools(server, () => apiToken, enableWrites);
@@ -18,7 +19,7 @@ function createServer(apiToken: string, enableWrites: boolean): McpServer {
 function createDemoServer(): McpServer {
   const server = new McpServer({
     name: "parsely-demo",
-    version: "1.0.0",
+    version: VERSION,
   });
 
   registerDemoTools(server);
@@ -51,7 +52,7 @@ export default {
     }
 
     if (url.pathname === "/") {
-      return new Response(INDEX_HTML, {
+      return new Response(INDEX_HTML.replace("__VERSION__", VERSION), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
