@@ -74,13 +74,13 @@ export default {
     }
 
     const authHeader = request.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const apiToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : url.searchParams.get("token");
+    if (!apiToken) {
       return new Response(
-        JSON.stringify({ error: "Missing or invalid Authorization header. Provide a Parsely API token as a Bearer token." }),
+        JSON.stringify({ error: "Missing API token. Provide a Parsely API token via Authorization: Bearer header or ?token= query parameter." }),
         { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
-    const apiToken = authHeader.slice(7);
 
     return handleMcp(request, createServer(apiToken, enableWrites));
   },
