@@ -6,3 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 routes = [
   { pattern = "parsely.vein.io", custom_domain = true }
 ]
+
+rules = [
+  { type = "Text", globs = ["**/*.html"] }
+]

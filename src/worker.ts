@@ -2,69 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { registerTools } from "./tools.js";
 import { registerDemoTools } from "./demo-tools.js";
-
-const INDEX_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Parsely MCP Server</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 640px; margin: 0 auto; padding: 2rem 1rem; }
-    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
-    .subtitle { color: #666; margin-bottom: 1.5rem; }
-    h2 { font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.5rem; }
-    pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; line-height: 1.5; margin-bottom: 0.75rem; }
-    code { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
-    p { margin-bottom: 0.75rem; }
-    ul { margin-left: 1.25rem; margin-bottom: 0.75rem; }
-    .note { background: #fffbe6; border-left: 3px solid #e6c200; padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.9rem; margin-bottom: 0.75rem; }
-    a { color: #0066cc; }
-  </style>
-</head>
-<body>
-  <h1>Parsely MCP Server</h1>
-  <p class="subtitle">Access your <a href="https://www.parsleycooks.com">Parsely</a> recipes, menus, ingredients, and events from any MCP client.</p>
-
-  <h2>Remote (Hosted)</h2>
-  <p>Point your MCP client at the hosted endpoint. You'll need a <a href="https://app.parsleycooks.com">Parsely API token</a> as the bearer token.</p>
-  <pre><code>{
-  "mcpServers": {
-    "parsely": {
-      "type": "streamable-http",
-      "url": "https://parsely.vein.io/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_PARSELY_API_TOKEN"
-      }
-    }
-  }
-}</code></pre>
-  <p>To enable write operations (create/update events, manage users), use <code>/mcp/write</code> instead of <code>/mcp</code>.</p>
-
-  <h2>Local (stdio)</h2>
-  <p>Run the server locally via npx:</p>
-  <pre><code>{
-  "mcpServers": {
-    "parsely": {
-      "command": "npx",
-      "args": ["-y", "parsely-mcp"],
-      "env": {
-        "PARSELY_API_TOKEN": "YOUR_PARSELY_API_TOKEN"
-      }
-    }
-  }
-}</code></pre>
-  <p>Add <code>--enable-writes</code> to <code>args</code> to enable write operations.</p>
-
-  <h2>Endpoints</h2>
-  <ul>
-    <li><code>/mcp</code> &mdash; read-only MCP endpoint</li>
-    <li><code>/mcp/write</code> &mdash; read-write MCP endpoint</li>
-    <li><code>/mcp/demo</code> &mdash; demo endpoint (no auth required)</li>
-  </ul>
-</body>
-</html>`;
+import INDEX_HTML from "./index.html";
 
 function createServer(apiToken: string, enableWrites: boolean): McpServer {
   const server = new McpServer({

@@ -10,5 +10,5 @@
     "types": ["@cloudflare/workers-types"],
     "noEmit": true
   },
-  "include": ["src/worker.ts", "src/tools.ts", "src/demo-tools.ts", "src/demo-data.ts"]
+  "include": ["src/worker.ts", "src/tools.ts", "src/demo-tools.ts", "src/demo-data.ts", "src/html.d.ts"]
 }
