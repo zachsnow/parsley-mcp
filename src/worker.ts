@@ -51,6 +51,12 @@ export default {
       return new Response("ok");
     }
 
+    if (url.pathname === "/robots.txt") {
+      return new Response("User-agent: *\nAllow: /\n", {
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+
     if (url.pathname === "/") {
       return new Response(INDEX_HTML.replace("__VERSION__", VERSION), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
