@@ -76,4 +76,4 @@ npm run deploy
 
 ## License
 
-ISC
+MIT
