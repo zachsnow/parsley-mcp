@@ -4,7 +4,7 @@ An [MCP](https://modelcontextprotocol.io/) server that gives AI assistants acces
 
 ## Hosted
 
-A hosted version is available at [parsley.vein.io](https://parsley.vein.io). Connect any MCP client using a Remote transport with your Parsley API token as a Bearer token.
+A hosted version is available at [parsley.vein.io](https://parsley.vein.io). Connect any MCP client using a Remote transport with your Parsley API token, passed either as a Bearer token in the `Authorization` header or as a `?token=` query parameter.
 
 Read-only endpoint:
 
