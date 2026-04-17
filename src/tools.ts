@@ -21,6 +21,7 @@ export const READ_TOOL_NAMES = [
   "list_chef_users",
   "get_access_token",
   "get_commissary_report",
+  "clear_cache",
 ] as const;
 
 export const WRITE_TOOL_NAMES = [
@@ -41,6 +42,42 @@ export const ALL_TOOL_NAMES: readonly string[] = [
   ...WRITE_TOOL_NAMES,
 ];
 
+const CACHE_TTL_MS = 60 * 60 * 1000;
+
+type CacheEntry = { data: unknown; expiresAt: number };
+
+// Keyed by `${token}|${path}?${sortedParams}`. Token is part of the key so
+// different tenants never share entries. Module-level state persists for the
+// life of the Cloudflare isolate — best-effort, not guaranteed.
+const cache = new Map<string, CacheEntry>();
+
+function cacheKey(apiToken: string, path: string, params?: Record<string, string>): string {
+  const search = params
+    ? Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== "")
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join("&")
+    : "";
+  return `${apiToken}|${path}?${search}`;
+}
+
+function invalidateToken(apiToken: string): number {
+  const prefix = `${apiToken}|`;
+  let n = 0;
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) {
+      cache.delete(key);
+      n++;
+    }
+  }
+  return n;
+}
+
+export function clearCacheForToken(apiToken: string): number {
+  return invalidateToken(apiToken);
+}
+
 export async function parsleyFetch(
   apiToken: string,
   path: string,
@@ -50,11 +87,25 @@ export async function parsleyFetch(
     body?: unknown;
   } = {}
 ): Promise<unknown> {
+  const method = options.method || "GET";
+  const cacheable = method === "GET";
+  const key = cacheable ? cacheKey(apiToken, path, options.params) : "";
+
+  if (cacheable) {
+    const hit = cache.get(key);
+    if (hit && hit.expiresAt > Date.now()) {
+      return hit.data;
+    }
+    if (hit) {
+      cache.delete(key);
+    }
+  }
+
   const url = new URL(`${BASE_URL}${path}`);
   if (options.params) {
-    for (const [key, value] of Object.entries(options.params)) {
-      if (value !== undefined && value !== "") {
-        url.searchParams.set(key, value);
+    for (const [k, v] of Object.entries(options.params)) {
+      if (v !== undefined && v !== "") {
+        url.searchParams.set(k, v);
       }
     }
   }
@@ -65,7 +116,7 @@ export async function parsleyFetch(
   };
 
   const resp = await fetch(url.toString(), {
-    method: options.method || "GET",
+    method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
@@ -77,15 +128,22 @@ export async function parsleyFetch(
 
   const contentType = resp.headers.get("content-type") || "";
 
+  let data: unknown;
   if (contentType.includes("text/csv")) {
-    return await resp.text();
+    data = await resp.text();
+  } else if (resp.status === 204) {
+    data = { status: "no content" };
+  } else {
+    data = await resp.json();
   }
 
-  if (resp.status === 204) {
-    return { status: "no content" };
+  if (cacheable) {
+    cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+  } else {
+    invalidateToken(apiToken);
   }
 
-  return await resp.json();
+  return data;
 }
 
 function jsonResult(data: unknown) {
@@ -377,6 +435,16 @@ export function registerTools(
     "Get CloudFront access token for CDN.",
     {},
     async () => jsonResult(await apiFetch("/users/accessToken"))
+  );
+
+  tool(
+    "clear_cache",
+    "Clear the cached Parsley API responses for this token. Use if you suspect data is stale; otherwise GET responses are cached for 1 hour.",
+    {},
+    async () => {
+      const cleared = clearCacheForToken(getToken());
+      return jsonResult({ cleared });
+    }
   );
 
   tool(
