@@ -42,7 +42,7 @@ export const ALL_TOOL_NAMES: readonly string[] = [
   ...WRITE_TOOL_NAMES,
 ];
 
-const CACHE_TTL_MS = 60 * 60 * 1000;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 type CacheEntry = { data: unknown; expiresAt: number };
 
@@ -439,7 +439,7 @@ export function registerTools(
 
   tool(
     "clear_cache",
-    "Clear the cached Parsley API responses for this token. Use if you suspect data is stale; otherwise GET responses are cached for 1 hour.",
+    "Clear the cached Parsley API responses for this token. Use if you suspect data is stale; otherwise GET responses are cached for 24 hours.",
     {},
     async () => {
       const cleared = clearCacheForToken(getToken());
