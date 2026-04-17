@@ -3,6 +3,41 @@ import { z } from "zod";
 
 const BASE_URL = "https://app.parsleycooks.com/api/public";
 
+export const READ_TOOL_NAMES = [
+  "list_menu_items",
+  "get_menu_item",
+  "list_menus",
+  "get_menu",
+  "get_recipe",
+  "list_ingredients",
+  "get_ingredient",
+  "list_events",
+  "get_event",
+  "list_serving_stations",
+  "list_chef_tags",
+  "list_chef_users",
+  "get_access_token",
+  "get_commissary_report",
+] as const;
+
+export const WRITE_TOOL_NAMES = [
+  "create_event",
+  "update_event",
+  "push_event_sales",
+  "push_event_waste_leftover",
+  "create_chef_tag",
+  "update_chef_tag",
+  "remove_chef_tag_users",
+  "create_chef_user",
+  "update_chef_user",
+  "delete_chef_user",
+] as const;
+
+export const ALL_TOOL_NAMES: readonly string[] = [
+  ...READ_TOOL_NAMES,
+  ...WRITE_TOOL_NAMES,
+];
+
 export async function parsleyFetch(
   apiToken: string,
   path: string,
@@ -55,7 +90,7 @@ function jsonResult(data: unknown) {
     content: [
       {
         type: "text" as const,
-        text: typeof data === "string" ? data : JSON.stringify(data, null, 2),
+        text: typeof data === "string" ? data : JSON.stringify(data),
       },
     ],
   };
@@ -64,7 +99,8 @@ function jsonResult(data: unknown) {
 export function registerTools(
   server: McpServer,
   getToken: () => string,
-  enableWrites: boolean
+  enableWrites: boolean,
+  filter?: ReadonlySet<string> | null
 ) {
   function apiFetch(
     path: string,
@@ -73,13 +109,20 @@ export function registerTools(
     return parsleyFetch(getToken(), path, options);
   }
 
+  const tool = ((name: string, ...rest: unknown[]) => {
+    if (filter && !filter.has(name)) {
+      return;
+    }
+    (server.tool as unknown as (...a: unknown[]) => unknown)(name, ...rest);
+  }) as unknown as typeof server.tool;
+
   // ============================================================
   // Read-only tools
   // ============================================================
 
-  server.tool(
+  tool(
     "list_menu_items",
-    "List all menu items (recipes, subrecipes, ingredients) with IDs, names, tags, and prices",
+    "List menu items (recipes, subrecipes, ingredients).",
     { syncTag: z.string().optional().describe("Filter by sync tag name") },
     async ({ syncTag }) => {
       const params: Record<string, string> = {};
@@ -90,12 +133,12 @@ export function registerTools(
     }
   );
 
-  server.tool(
+  tool(
     "get_menu_item",
-    "Get detailed info for a menu item including description, nutrition, allergens, and photo URL",
+    "Get menu item details: description, nutrition, allergens, photo.",
     {
-      id: z.string().describe("Menu item ID (numeric) or item number (string)"),
-      getByItemNumber: z.boolean().optional().describe("Set true if id is an item number string"),
+      id: z.string().describe("ID (numeric) or item number (string)"),
+      getByItemNumber: z.boolean().optional().describe("True if id is an item number"),
     },
     async ({ id, getByItemNumber }) => {
       const params: Record<string, string> = {};
@@ -108,30 +151,30 @@ export function registerTools(
     }
   );
 
-  server.tool(
+  tool(
     "list_menus",
-    "List all available menus with their IDs and names",
+    "List menus.",
     {},
     async () => jsonResult(await apiFetch("/menus"))
   );
 
-  server.tool(
+  tool(
     "get_menu",
-    "Get full menu details including sections, stations, and menu items",
-    { id: z.number().describe("Menu ID") },
+    "Get menu with sections, stations, and items.",
+    { id: z.number() },
     async ({ id }) => jsonResult(await apiFetch(`/menus/${id}`))
   );
 
-  server.tool(
+  tool(
     "get_recipe",
-    "Get recipe details including steps, ingredients, sub-recipes, nutrition, and cost",
+    "Get recipe: steps, ingredients, sub-recipes, nutrition, cost.",
     {
-      id: z.string().describe("Recipe ID (numeric) or item number (string)"),
-      getByItemNumber: z.boolean().optional().describe("Set true if id is an item number string"),
+      id: z.string().describe("ID (numeric) or item number (string)"),
+      getByItemNumber: z.boolean().optional().describe("True if id is an item number"),
       roundedQuantities: z
         .boolean()
         .optional()
-        .describe("Round quantities to 2 decimal places (default true)"),
+        .describe("Round to 2 decimals (default true)"),
     },
     async ({ id, getByItemNumber, roundedQuantities }) => {
       const params: Record<string, string> = {};
@@ -147,9 +190,9 @@ export function registerTools(
     }
   );
 
-  server.tool(
+  tool(
     "list_ingredients",
-    "List all ingredients with IDs, names, and whether they are used by recipes",
+    "List ingredients.",
     { salable: z.boolean().optional().describe("Filter by salable status") },
     async ({ salable }) => {
       const params: Record<string, string> = {};
@@ -160,65 +203,65 @@ export function registerTools(
     }
   );
 
-  server.tool(
+  tool(
     "get_ingredient",
-    "Get detailed ingredient info including conversions, supply options, and preparations",
-    { id: z.number().describe("Ingredient ID") },
+    "Get ingredient: conversions, supply options, preparations.",
+    { id: z.number() },
     async ({ id }) => jsonResult(await apiFetch(`/ingredients/${id}`))
   );
 
-  server.tool(
+  tool(
     "list_events",
-    "List events in a date range",
+    "List events in a date range.",
     {
-      startDate: z.string().describe("Start date (inclusive), e.g. 2023-01-03T09:00:00"),
-      endDate: z.string().describe("End date (inclusive), e.g. 2023-12-31T23:59:59"),
+      startDate: z.string().describe("Start, e.g. 2023-01-03T09:00:00"),
+      endDate: z.string().describe("End, e.g. 2023-12-31T23:59:59"),
     },
     async ({ startDate, endDate }) =>
       jsonResult(await apiFetch("/events", { params: { startDate, endDate } }))
   );
 
-  server.tool(
+  tool(
     "get_event",
-    "Get full details of an event including all line items",
-    { id: z.number().describe("Event ID") },
+    "Get event with line items.",
+    { id: z.number() },
     async ({ id }) => jsonResult(await apiFetch(`/events/${id}`))
   );
 
-  server.tool(
+  tool(
     "list_serving_stations",
-    "List all serving stations with IDs and names",
+    "List serving stations.",
     {},
     async () => jsonResult(await apiFetch("/tags/serving_stations"))
   );
 
-  server.tool(
+  tool(
     "list_chef_tags",
-    "List all chef tags with IDs and names",
+    "List chef tags.",
     {},
     async () => jsonResult(await apiFetch("/tags/chefs"))
   );
 
-  server.tool(
+  tool(
     "list_chef_users",
-    "List all chef users with IDs, emails, and permission levels",
+    "List chef users.",
     {},
     async () => jsonResult(await apiFetch("/users/chefs"))
   );
 
-  server.tool(
+  tool(
     "get_access_token",
-    "Generate a CloudFront access token for CDN resource access",
+    "Get CloudFront access token for CDN.",
     {},
     async () => jsonResult(await apiFetch("/users/accessToken"))
   );
 
-  server.tool(
+  tool(
     "get_commissary_report",
-    "Get commissary transaction report as CSV (commissary accounts only)",
+    "Commissary transaction report as CSV.",
     {
-      startDate: z.string().describe("Start date, YYYY-MM-DD"),
-      endDate: z.string().describe("End date, YYYY-MM-DD"),
+      startDate: z.string().describe("YYYY-MM-DD"),
+      endDate: z.string().describe("YYYY-MM-DD"),
     },
     async ({ startDate, endDate }) =>
       jsonResult(
@@ -246,19 +289,19 @@ export function registerTools(
     section: z.string().optional(),
   });
 
-  server.tool(
+  tool(
     "create_event",
-    "Create a new event (workday, shift, service, or catering event)",
+    "Create an event (workday, shift, service, or catering).",
     {
-      name: z.string().describe("Event name"),
-      type: z.enum(["standard", "cafe-hot-bar", "sale", "forecast"]).describe("Event type"),
-      date: z.string().describe("Event date, YYYY-MM-DD"),
-      startTime: z.string().optional().describe("Start time HH:mm"),
-      endTime: z.string().optional().describe("End time HH:mm"),
+      name: z.string(),
+      type: z.enum(["standard", "cafe-hot-bar", "sale", "forecast"]),
+      date: z.string().describe("YYYY-MM-DD"),
+      startTime: z.string().optional().describe("HH:mm"),
+      endTime: z.string().optional().describe("HH:mm"),
       menu: z.number().optional().describe("Menu ID"),
       description: z.string().optional(),
-      private: z.boolean().optional().describe("Whether the event is private"),
-      lineItems: z.array(lineItemSchema).describe("Line items"),
+      private: z.boolean().optional(),
+      lineItems: z.array(lineItemSchema),
     },
     async ({ name, type, date, startTime, endTime, menu, description, lineItems, ...rest }) => {
       const body: Record<string, unknown> = { name, type, date, lineItems };
@@ -271,19 +314,19 @@ export function registerTools(
     }
   );
 
-  server.tool(
+  tool(
     "update_event",
-    "Update an existing event (replaces existing content)",
+    "Update an event (replaces content).",
     {
-      id: z.number().describe("Event ID"),
-      name: z.string().describe("Event name"),
-      type: z.enum(["standard", "cafe-hot-bar", "sale", "forecast"]).describe("Event type"),
-      date: z.string().describe("Event date, YYYY-MM-DD"),
-      startTime: z.string().optional().describe("Start time HH:mm"),
-      endTime: z.string().optional().describe("End time HH:mm"),
+      id: z.number(),
+      name: z.string(),
+      type: z.enum(["standard", "cafe-hot-bar", "sale", "forecast"]),
+      date: z.string().describe("YYYY-MM-DD"),
+      startTime: z.string().optional().describe("HH:mm"),
+      endTime: z.string().optional().describe("HH:mm"),
       menu: z.number().optional().describe("Menu ID"),
       description: z.string().optional(),
-      lineItems: z.array(lineItemSchema).describe("Line items"),
+      lineItems: z.array(lineItemSchema),
     },
     async ({ id, name, type, date, startTime, endTime, menu, description, lineItems }) => {
       const body: Record<string, unknown> = { name, type, date, lineItems };
@@ -295,11 +338,11 @@ export function registerTools(
     }
   );
 
-  server.tool(
+  tool(
     "push_event_sales",
-    "Push sales data for a cafe/hot bar event",
+    "Push sales data for a cafe/hot bar event.",
     {
-      id: z.number().describe("Event ID"),
+      id: z.number(),
       lineItems: z.array(
         z.object({
           menuItem: z.number().optional(),
@@ -307,64 +350,61 @@ export function registerTools(
           amount: z.number(),
           uom: z.string().optional(),
         })
-      ).describe("Sales line items"),
+      ),
     },
     async ({ id, lineItems }) =>
       jsonResult(await apiFetch(`/events/${id}/sales`, { method: "PUT", body: lineItems }))
   );
 
-  server.tool(
+  tool(
     "push_event_waste_leftover",
-    "Push waste or leftover data for a cafe/hot bar event",
+    "Push waste/leftover data for a cafe/hot bar event.",
     {
-      id: z.number().describe("Event ID"),
+      id: z.number(),
       items: z.array(
         z.object({
-          menuItem: z.number().describe("Menu item ID"),
+          menuItem: z.number(),
           waste: z.object({ amount: z.number(), uom: z.string().optional() }).optional(),
           leftover: z.object({ amount: z.number(), uom: z.string().optional() }).optional(),
           station: z.string().optional(),
           section: z.string().optional(),
         })
-      ).describe("Waste/leftover items"),
+      ),
     },
     async ({ id, items }) =>
       jsonResult(await apiFetch(`/events/${id}/waste_leftover`, { method: "PUT", body: items }))
   );
 
-  server.tool(
+  tool(
     "create_chef_tag",
-    "Create a new chef tag (requires Chef IDs enabled)",
-    { name: z.string().describe("Chef tag name") },
+    "Create a chef tag.",
+    { name: z.string() },
     async ({ name }) =>
       jsonResult(await apiFetch("/tags/chefs", { method: "POST", body: { name } }))
   );
 
-  server.tool(
+  tool(
     "update_chef_tag",
-    "Update an existing chef tag",
-    {
-      id: z.number().describe("Chef tag ID"),
-      name: z.string().describe("New name"),
-    },
+    "Update a chef tag.",
+    { id: z.number(), name: z.string() },
     async ({ id, name }) =>
       jsonResult(await apiFetch(`/tags/chefs/${id}`, { method: "PUT", body: { name } }))
   );
 
-  server.tool(
+  tool(
     "remove_chef_tag_users",
-    "Remove all users associated with a chef tag",
-    { id: z.number().describe("Chef tag ID") },
+    "Remove all users from a chef tag.",
+    { id: z.number() },
     async ({ id }) =>
       jsonResult(await apiFetch(`/tags/chefs/${id}/users`, { method: "DELETE" }))
   );
 
-  server.tool(
+  tool(
     "create_chef_user",
-    "Create a new chef user (requires Chef IDs enabled)",
+    "Create a chef user.",
     {
-      email: z.string().describe("User email address"),
-      permissionLevel: z.enum(["independent-chef", "chef-read-only"]).describe("Permission level"),
+      email: z.string(),
+      permissionLevel: z.enum(["independent-chef", "chef-read-only"]),
       chefTag: z.union([z.number(), z.string()]).describe("Chef tag ID or name"),
     },
     async ({ email, permissionLevel, chefTag }) =>
@@ -373,12 +413,12 @@ export function registerTools(
       )
   );
 
-  server.tool(
+  tool(
     "update_chef_user",
-    "Update a chef user's permission level or chef tag",
+    "Update a chef user.",
     {
-      id: z.number().describe("User ID"),
-      permissionLevel: z.enum(["independent-chef", "chef-read-only"]).describe("Permission level"),
+      id: z.number(),
+      permissionLevel: z.enum(["independent-chef", "chef-read-only"]),
       chefTag: z.union([z.number(), z.string()]).describe("Chef tag ID or name"),
     },
     async ({ id, permissionLevel, chefTag }) =>
@@ -387,10 +427,10 @@ export function registerTools(
       )
   );
 
-  server.tool(
+  tool(
     "delete_chef_user",
-    "Delete a chef user",
-    { id: z.number().describe("User ID") },
+    "Delete a chef user.",
+    { id: z.number() },
     async ({ id }) =>
       jsonResult(await apiFetch(`/users/chefs/${id}`, { method: "DELETE" }))
   );

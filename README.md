@@ -24,6 +24,16 @@ Demo endpoint (no auth required, mock data):
 https://parsley.vein.io/mcp/demo
 ```
 
+### Filtering tools
+
+Pass `?tools=a,b,c` to register only the tools you need, trimming the tool schema from the context window:
+
+```
+https://parsley.vein.io/mcp?tools=list_menu_items,get_recipe,list_events
+```
+
+Unknown names return 400. Works on `/mcp`, `/mcp/write`, and `/mcp/demo`.
+
 ## Local (stdio)
 
 Run locally via npx:

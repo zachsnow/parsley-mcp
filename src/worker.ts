@@ -1,28 +1,32 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { registerTools } from "./tools.js";
+import { registerTools, ALL_TOOL_NAMES, READ_TOOL_NAMES } from "./tools.js";
 import { registerDemoTools } from "./demo-tools.js";
 import { VERSION } from "./version.js";
 import INDEX_HTML from "./index.html";
 
-function createServer(apiToken: string, enableWrites: boolean): McpServer {
+function createServer(
+  apiToken: string,
+  enableWrites: boolean,
+  filter: ReadonlySet<string> | null
+): McpServer {
   const server = new McpServer({
     name: "parsley",
     version: VERSION,
   });
 
-  registerTools(server, () => apiToken, enableWrites);
+  registerTools(server, () => apiToken, enableWrites, filter);
 
   return server;
 }
 
-function createDemoServer(): McpServer {
+function createDemoServer(filter: ReadonlySet<string> | null): McpServer {
   const server = new McpServer({
     name: "parsley-demo",
     version: VERSION,
   });
 
-  registerDemoTools(server);
+  registerDemoTools(server, filter);
 
   return server;
 }
@@ -41,6 +45,36 @@ async function handleMcp(request: Request, server: McpServer): Promise<Response>
     await transport.close();
     await server.close();
   }
+}
+
+function jsonError(message: string, status: number): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function parseToolsFilter(
+  url: URL,
+  allowed: readonly string[]
+): { filter: ReadonlySet<string> | null; error?: string } {
+  const raw = url.searchParams.get("tools");
+  if (!raw) {
+    return { filter: null };
+  }
+  const requested = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (requested.length === 0) {
+    return { filter: null };
+  }
+  const allowedSet = new Set(allowed);
+  const unknown = requested.filter((t) => !allowedSet.has(t));
+  if (unknown.length > 0) {
+    return {
+      filter: null,
+      error: `Unknown tool(s): ${unknown.join(", ")}. Allowed: ${allowed.join(", ")}`,
+    };
+  }
+  return { filter: new Set(requested) };
 }
 
 export default {
@@ -65,7 +99,11 @@ export default {
 
     // Demo endpoint — no auth required
     if (url.pathname === "/mcp/demo") {
-      return handleMcp(request, createDemoServer());
+      const { filter, error } = parseToolsFilter(url, READ_TOOL_NAMES);
+      if (error) {
+        return jsonError(error, 400);
+      }
+      return handleMcp(request, createDemoServer(filter));
     }
 
     const enableWrites = url.pathname === "/mcp/write";
@@ -73,15 +111,21 @@ export default {
       return new Response("Not found", { status: 404 });
     }
 
+    const allowed = enableWrites ? ALL_TOOL_NAMES : READ_TOOL_NAMES;
+    const { filter, error } = parseToolsFilter(url, allowed);
+    if (error) {
+      return jsonError(error, 400);
+    }
+
     const authHeader = request.headers.get("Authorization");
     const apiToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : url.searchParams.get("token");
     if (!apiToken) {
-      return new Response(
-        JSON.stringify({ error: "Missing API token. Provide a Parsley API token via Authorization: Bearer header or ?token= query parameter." }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+      return jsonError(
+        "Missing API token. Provide a Parsley API token via Authorization: Bearer header or ?token= query parameter.",
+        401
       );
     }
 
-    return handleMcp(request, createServer(apiToken, enableWrites));
+    return handleMcp(request, createServer(apiToken, enableWrites, filter));
   },
 };

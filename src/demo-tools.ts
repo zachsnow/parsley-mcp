@@ -7,7 +7,7 @@ function jsonResult(data: unknown) {
     content: [
       {
         type: "text" as const,
-        text: typeof data === "string" ? data : JSON.stringify(data, null, 2),
+        text: typeof data === "string" ? data : JSON.stringify(data),
       },
     ],
   };
@@ -20,10 +20,20 @@ function notFound(type: string, id: string | number) {
   };
 }
 
-export function registerDemoTools(server: McpServer) {
-  server.tool(
+export function registerDemoTools(
+  server: McpServer,
+  filter?: ReadonlySet<string> | null
+) {
+  const tool = ((name: string, ...rest: unknown[]) => {
+    if (filter && !filter.has(name)) {
+      return;
+    }
+    (server.tool as unknown as (...a: unknown[]) => unknown)(name, ...rest);
+  }) as unknown as typeof server.tool;
+
+  tool(
     "list_menu_items",
-    "List all menu items (recipes, subrecipes, ingredients) with IDs, names, tags, and prices",
+    "List menu items (recipes, subrecipes, ingredients).",
     { syncTag: z.string().optional().describe("Filter by sync tag name") },
     async ({ syncTag }) => {
       let items = demo.menuItems;
@@ -34,12 +44,12 @@ export function registerDemoTools(server: McpServer) {
     }
   );
 
-  server.tool(
+  tool(
     "get_menu_item",
-    "Get detailed info for a menu item including description, nutrition, allergens, and photo URL",
+    "Get menu item details: description, nutrition, allergens, photo.",
     {
-      id: z.string().describe("Menu item ID (numeric) or item number (string)"),
-      getByItemNumber: z.boolean().optional().describe("Set true if id is an item number string"),
+      id: z.string().describe("ID (numeric) or item number (string)"),
+      getByItemNumber: z.boolean().optional().describe("True if id is an item number"),
     },
     async ({ id, getByItemNumber }) => {
       let item: unknown;
@@ -58,17 +68,17 @@ export function registerDemoTools(server: McpServer) {
     }
   );
 
-  server.tool(
+  tool(
     "list_menus",
-    "List all available menus with their IDs and names",
+    "List menus.",
     {},
     async () => jsonResult(demo.menus)
   );
 
-  server.tool(
+  tool(
     "get_menu",
-    "Get full menu details including sections, stations, and menu items",
-    { id: z.number().describe("Menu ID") },
+    "Get menu with sections, stations, and items.",
+    { id: z.number() },
     async ({ id }) => {
       const menu = demo.menuDetails[id];
       if (!menu) {
@@ -78,13 +88,13 @@ export function registerDemoTools(server: McpServer) {
     }
   );
 
-  server.tool(
+  tool(
     "get_recipe",
-    "Get recipe details including steps, ingredients, sub-recipes, nutrition, and cost",
+    "Get recipe: steps, ingredients, sub-recipes, nutrition, cost.",
     {
-      id: z.string().describe("Recipe ID (numeric) or item number (string)"),
-      getByItemNumber: z.boolean().optional().describe("Set true if id is an item number string"),
-      roundedQuantities: z.boolean().optional().describe("Round quantities to 2 decimal places (default true)"),
+      id: z.string().describe("ID (numeric) or item number (string)"),
+      getByItemNumber: z.boolean().optional().describe("True if id is an item number"),
+      roundedQuantities: z.boolean().optional().describe("Round to 2 decimals (default true)"),
     },
     async ({ id, getByItemNumber }) => {
       let recipe: unknown;
@@ -103,17 +113,17 @@ export function registerDemoTools(server: McpServer) {
     }
   );
 
-  server.tool(
+  tool(
     "list_ingredients",
-    "List all ingredients with IDs, names, and whether they are used by recipes",
+    "List ingredients.",
     { salable: z.boolean().optional().describe("Filter by salable status") },
     async () => jsonResult(demo.ingredients)
   );
 
-  server.tool(
+  tool(
     "get_ingredient",
-    "Get detailed ingredient info including conversions, supply options, and preparations",
-    { id: z.number().describe("Ingredient ID") },
+    "Get ingredient: conversions, supply options, preparations.",
+    { id: z.number() },
     async ({ id }) => {
       const ingredient = demo.ingredientDetails[id];
       if (!ingredient) {
@@ -123,12 +133,12 @@ export function registerDemoTools(server: McpServer) {
     }
   );
 
-  server.tool(
+  tool(
     "list_events",
-    "List events in a date range",
+    "List events in a date range.",
     {
-      startDate: z.string().describe("Start date (inclusive), e.g. 2023-01-03T09:00:00"),
-      endDate: z.string().describe("End date (inclusive), e.g. 2023-12-31T23:59:59"),
+      startDate: z.string().describe("Start, e.g. 2023-01-03T09:00:00"),
+      endDate: z.string().describe("End, e.g. 2023-12-31T23:59:59"),
     },
     async ({ startDate, endDate }) => {
       const start = startDate.slice(0, 10);
@@ -138,10 +148,10 @@ export function registerDemoTools(server: McpServer) {
     }
   );
 
-  server.tool(
+  tool(
     "get_event",
-    "Get full details of an event including all line items",
-    { id: z.number().describe("Event ID") },
+    "Get event with line items.",
+    { id: z.number() },
     async ({ id }) => {
       const event = demo.eventDetails[id];
       if (!event) {
@@ -151,30 +161,30 @@ export function registerDemoTools(server: McpServer) {
     }
   );
 
-  server.tool(
+  tool(
     "list_serving_stations",
-    "List all serving stations with IDs and names",
+    "List serving stations.",
     {},
     async () => jsonResult(demo.servingStations)
   );
 
-  server.tool(
+  tool(
     "list_chef_tags",
-    "List all chef tags with IDs and names",
+    "List chef tags.",
     {},
     async () => jsonResult(demo.chefTags)
   );
 
-  server.tool(
+  tool(
     "list_chef_users",
-    "List all chef users with IDs, emails, and permission levels",
+    "List chef users.",
     {},
     async () => jsonResult(demo.chefUsers)
   );
 
-  server.tool(
+  tool(
     "get_access_token",
-    "Generate a CloudFront access token for CDN resource access",
+    "Get CloudFront access token for CDN.",
     {},
     async () =>
       jsonResult({
@@ -184,12 +194,12 @@ export function registerDemoTools(server: McpServer) {
       })
   );
 
-  server.tool(
+  tool(
     "get_commissary_report",
-    "Get commissary transaction report as CSV (commissary accounts only)",
+    "Commissary transaction report as CSV.",
     {
-      startDate: z.string().describe("Start date, YYYY-MM-DD"),
-      endDate: z.string().describe("End date, YYYY-MM-DD"),
+      startDate: z.string().describe("YYYY-MM-DD"),
+      endDate: z.string().describe("YYYY-MM-DD"),
     },
     async ({ startDate, endDate }) =>
       jsonResult(
