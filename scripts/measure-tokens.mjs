@@ -247,23 +247,36 @@ async function measureToolResponses() {
   const path = "/mcp";
   const auth = true;
 
-  // Discover IDs from list calls so get_* calls have something to hit.
-  let recipeId = null;
-  let menuId = null;
-  try {
-    const { parsed } = await callTool(path, auth, "list_menu_items", {});
-    recipeId = firstNumericId(parsed);
-  } catch {}
-  try {
-    const { parsed } = await callTool(path, auth, "list_menus", {});
-    menuId = firstNumericId(parsed);
-  } catch {}
-
   const today = new Date();
   const monthAgo = new Date(today);
   monthAgo.setDate(monthAgo.getDate() - 30);
   const eventStart = `${isoDate(monthAgo)}T00:00:00`;
   const eventEnd = `${isoDate(today)}T23:59:59`;
+
+  // Discover IDs from list calls so get_* calls have something to hit.
+  let menuItemId = null;
+  let menuId = null;
+  let ingredientId = null;
+  let eventId = null;
+  try {
+    const { parsed } = await callTool(path, auth, "list_menu_items", {});
+    menuItemId = firstNumericId(parsed);
+  } catch {}
+  try {
+    const { parsed } = await callTool(path, auth, "list_menus", {});
+    menuId = firstNumericId(parsed);
+  } catch {}
+  try {
+    const { parsed } = await callTool(path, auth, "list_ingredients", {});
+    ingredientId = firstNumericId(parsed);
+  } catch {}
+  try {
+    const { parsed } = await callTool(path, auth, "list_events", {
+      startDate: eventStart,
+      endDate: eventEnd,
+    });
+    eventId = firstNumericId(parsed);
+  } catch {}
 
   const calls = [
     { name: "list_menu_items", args: {} },
@@ -271,11 +284,18 @@ async function measureToolResponses() {
     { name: "list_menus", args: {} },
     { name: "list_events", args: { startDate: eventStart, endDate: eventEnd } },
   ];
-  if (recipeId !== null) {
-    calls.push({ name: "get_recipe", args: { id: String(recipeId) } });
+  if (menuItemId !== null) {
+    calls.push({ name: "get_menu_item", args: { id: String(menuItemId) } });
+    calls.push({ name: "get_recipe", args: { id: String(menuItemId) } });
   }
   if (menuId !== null) {
     calls.push({ name: "get_menu", args: { id: menuId } });
+  }
+  if (ingredientId !== null) {
+    calls.push({ name: "get_ingredient", args: { id: ingredientId } });
+  }
+  if (eventId !== null) {
+    calls.push({ name: "get_event", args: { id: eventId } });
   }
 
   console.log();
