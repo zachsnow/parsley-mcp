@@ -232,6 +232,33 @@ export function registerTools(
     (server.tool as unknown as (...a: unknown[]) => unknown)(name, ...rest);
   }) as unknown as typeof server.tool;
 
+  // MCP tool annotations (hints; clients may treat as advisory).
+  const READ_ANNO = { readOnlyHint: true, openWorldHint: true } as const;
+  const LOCAL_ANNO = {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  } as const;
+  const CREATE_ANNO = {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  } as const;
+  const UPDATE_ANNO = {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: true,
+  } as const;
+  const DELETE_ANNO = {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: true,
+  } as const;
+
   // ============================================================
   // Read-only tools
   // ============================================================
@@ -246,6 +273,7 @@ export function registerTools(
         .optional()
         .describe("Filter by item type"),
     },
+    READ_ANNO,
     async ({ syncTag, type }) => {
       const params: Record<string, string> = {};
       if (syncTag) {
@@ -269,6 +297,7 @@ export function registerTools(
         .optional()
         .describe("Filter by item type"),
     },
+    READ_ANNO,
     async ({ query, type }) => {
       const all = (await apiFetch("/menu_items")) as MenuItemRow[];
       const filtered = all.filter((i) => {
@@ -288,6 +317,7 @@ export function registerTools(
       id: z.string().describe("ID (numeric) or item number (string)"),
       getByItemNumber: z.boolean().optional().describe("True if id is an item number"),
     },
+    READ_ANNO,
     async ({ id, getByItemNumber }) => {
       const params: Record<string, string> = {};
       if (getByItemNumber) {
@@ -303,6 +333,7 @@ export function registerTools(
     "list_menus",
     `List menus. Returns up to ${PAGE_LIMIT} with {items, total, truncated}; each item has id, name. If truncated, prefer search_menus.`,
     {},
+    READ_ANNO,
     async () => {
       const items = (await apiFetch("/menus")) as MenuRow[];
       return jsonResult(paged(items.map(projectMenu)));
@@ -313,6 +344,7 @@ export function registerTools(
     "search_menus",
     `Search menus by substring in name (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
     { query: z.string().describe("Substring to match") },
+    READ_ANNO,
     async ({ query }) => {
       const all = (await apiFetch("/menus")) as MenuRow[];
       const filtered = all.filter((m) => matchesQuery([m.name], query));
@@ -324,6 +356,7 @@ export function registerTools(
     "get_menu",
     "Get menu with sections, stations, and items.",
     { id: z.number() },
+    READ_ANNO,
     async ({ id }) => jsonResult(await apiFetch(`/menus/${id}`))
   );
 
@@ -338,6 +371,7 @@ export function registerTools(
         .optional()
         .describe("Round to 2 decimals (default true)"),
     },
+    READ_ANNO,
     async ({ id, getByItemNumber, roundedQuantities }) => {
       const params: Record<string, string> = {};
       if (getByItemNumber) {
@@ -356,6 +390,7 @@ export function registerTools(
     "list_ingredients",
     `List ingredients. Returns up to ${PAGE_LIMIT} with {items, total, truncated}; each item has id, name, itemNumber, salable. If truncated, prefer search_ingredients or filter by salable.`,
     { salable: z.boolean().optional().describe("Filter by salable status") },
+    READ_ANNO,
     async ({ salable }) => {
       const params: Record<string, string> = {};
       if (salable !== undefined) {
@@ -373,6 +408,7 @@ export function registerTools(
       query: z.string().describe("Substring to match"),
       salable: z.boolean().optional().describe("Filter by salable status"),
     },
+    READ_ANNO,
     async ({ query, salable }) => {
       const params: Record<string, string> = {};
       if (salable !== undefined) {
@@ -388,6 +424,7 @@ export function registerTools(
     "get_ingredient",
     "Get ingredient: conversions, supply options, preparations.",
     { id: z.number() },
+    READ_ANNO,
     async ({ id }) => jsonResult(await apiFetch(`/ingredients/${id}`))
   );
 
@@ -398,6 +435,7 @@ export function registerTools(
       startDate: z.string().describe("Start, e.g. 2023-01-03T09:00:00"),
       endDate: z.string().describe("End, e.g. 2023-12-31T23:59:59"),
     },
+    READ_ANNO,
     async ({ startDate, endDate }) =>
       jsonResult(await apiFetch("/events", { params: { startDate, endDate } }))
   );
@@ -406,6 +444,7 @@ export function registerTools(
     "get_event",
     "Get event with line items.",
     { id: z.number() },
+    READ_ANNO,
     async ({ id }) => jsonResult(await apiFetch(`/events/${id}`))
   );
 
@@ -413,6 +452,7 @@ export function registerTools(
     "list_serving_stations",
     "List serving stations.",
     {},
+    READ_ANNO,
     async () => jsonResult(await apiFetch("/tags/serving_stations"))
   );
 
@@ -420,6 +460,7 @@ export function registerTools(
     "list_chef_tags",
     "List chef tags.",
     {},
+    READ_ANNO,
     async () => jsonResult(await apiFetch("/tags/chefs"))
   );
 
@@ -427,6 +468,7 @@ export function registerTools(
     "list_chef_users",
     "List chef users.",
     {},
+    READ_ANNO,
     async () => jsonResult(await apiFetch("/users/chefs"))
   );
 
@@ -434,6 +476,7 @@ export function registerTools(
     "get_access_token",
     "Get CloudFront access token for CDN.",
     {},
+    READ_ANNO,
     async () => jsonResult(await apiFetch("/users/accessToken"))
   );
 
@@ -441,6 +484,7 @@ export function registerTools(
     "clear_cache",
     "Clear the cached Parsley API responses for this token. GET responses are cached for 24 hours; call this if you suspect data is stale. Ask the user for permission before calling, since subsequent reads will refetch from the API.",
     {},
+    LOCAL_ANNO,
     async () => {
       const cleared = clearCacheForToken(getToken());
       return jsonResult({ cleared });
@@ -454,6 +498,7 @@ export function registerTools(
       startDate: z.string().describe("YYYY-MM-DD"),
       endDate: z.string().describe("YYYY-MM-DD"),
     },
+    READ_ANNO,
     async ({ startDate, endDate }) =>
       jsonResult(
         await apiFetch("/reports/commissaryTransaction", {
@@ -494,6 +539,7 @@ export function registerTools(
       private: z.boolean().optional(),
       lineItems: z.array(lineItemSchema),
     },
+    CREATE_ANNO,
     async ({ name, type, date, startTime, endTime, menu, description, lineItems, ...rest }) => {
       const body: Record<string, unknown> = { name, type, date, lineItems };
       if (startTime) { body.startTime = startTime; }
@@ -519,6 +565,7 @@ export function registerTools(
       description: z.string().optional(),
       lineItems: z.array(lineItemSchema),
     },
+    UPDATE_ANNO,
     async ({ id, name, type, date, startTime, endTime, menu, description, lineItems }) => {
       const body: Record<string, unknown> = { name, type, date, lineItems };
       if (startTime) { body.startTime = startTime; }
@@ -543,6 +590,7 @@ export function registerTools(
         })
       ),
     },
+    UPDATE_ANNO,
     async ({ id, lineItems }) =>
       jsonResult(await apiFetch(`/events/${id}/sales`, { method: "PUT", body: lineItems }))
   );
@@ -562,6 +610,7 @@ export function registerTools(
         })
       ),
     },
+    UPDATE_ANNO,
     async ({ id, items }) =>
       jsonResult(await apiFetch(`/events/${id}/waste_leftover`, { method: "PUT", body: items }))
   );
@@ -570,6 +619,7 @@ export function registerTools(
     "create_chef_tag",
     "Create a chef tag.",
     { name: z.string() },
+    CREATE_ANNO,
     async ({ name }) =>
       jsonResult(await apiFetch("/tags/chefs", { method: "POST", body: { name } }))
   );
@@ -578,6 +628,7 @@ export function registerTools(
     "update_chef_tag",
     "Update a chef tag.",
     { id: z.number(), name: z.string() },
+    UPDATE_ANNO,
     async ({ id, name }) =>
       jsonResult(await apiFetch(`/tags/chefs/${id}`, { method: "PUT", body: { name } }))
   );
@@ -586,6 +637,7 @@ export function registerTools(
     "remove_chef_tag_users",
     "Remove all users from a chef tag.",
     { id: z.number() },
+    DELETE_ANNO,
     async ({ id }) =>
       jsonResult(await apiFetch(`/tags/chefs/${id}/users`, { method: "DELETE" }))
   );
@@ -598,6 +650,7 @@ export function registerTools(
       permissionLevel: z.enum(["independent-chef", "chef-read-only"]),
       chefTag: z.union([z.number(), z.string()]).describe("Chef tag ID or name"),
     },
+    CREATE_ANNO,
     async ({ email, permissionLevel, chefTag }) =>
       jsonResult(
         await apiFetch("/users/chefs", { method: "POST", body: { email, permissionLevel, chefTag } })
@@ -612,6 +665,7 @@ export function registerTools(
       permissionLevel: z.enum(["independent-chef", "chef-read-only"]),
       chefTag: z.union([z.number(), z.string()]).describe("Chef tag ID or name"),
     },
+    UPDATE_ANNO,
     async ({ id, permissionLevel, chefTag }) =>
       jsonResult(
         await apiFetch(`/users/chefs/${id}`, { method: "PUT", body: { permissionLevel, chefTag } })
@@ -622,6 +676,7 @@ export function registerTools(
     "delete_chef_user",
     "Delete a chef user.",
     { id: z.number() },
+    DELETE_ANNO,
     async ({ id }) =>
       jsonResult(await apiFetch(`/users/chefs/${id}`, { method: "DELETE" }))
   );
