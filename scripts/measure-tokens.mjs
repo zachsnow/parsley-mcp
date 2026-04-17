@@ -10,6 +10,16 @@
 // BASE_URL defaults to http://localhost:8787 (wrangler dev).
 // PARSLEY_API_TOKEN is only needed for /mcp and /mcp/write scenarios.
 // ANTHROPIC_API_KEY is optional; without it the script reports bytes only.
+//
+// .env and .env.local are loaded automatically if present (.env.local wins).
+
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+import dotenv from "dotenv";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, "..");
+dotenv.config({ path: [resolve(repoRoot, ".env.local"), resolve(repoRoot, ".env")] });
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:8787";
 const PARSLEY_API_TOKEN = process.env.PARSLEY_API_TOKEN;
