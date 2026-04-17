@@ -439,7 +439,7 @@ export function registerTools(
 
   tool(
     "clear_cache",
-    "Clear the cached Parsley API responses for this token. Use if you suspect data is stale; otherwise GET responses are cached for 24 hours.",
+    "Clear the cached Parsley API responses for this token. GET responses are cached for 24 hours; call this if you suspect data is stale. Ask the user for permission before calling, since subsequent reads will refetch from the API.",
     {},
     async () => {
       const cleared = clearCacheForToken(getToken());
