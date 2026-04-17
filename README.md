@@ -84,6 +84,10 @@ Deploy to Cloudflare Workers:
 npm run deploy
 ```
 
+## Parsley API
+
+This server wraps the [Parsley public API](https://app.swaggerhub.com/apis-docs/parsleysoftware/parsley).
+
 ## License
 
 MIT
