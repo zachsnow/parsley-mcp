@@ -20,6 +20,40 @@ function notFound(type: string, id: string | number) {
   };
 }
 
+const PAGE_LIMIT = 20;
+
+function paged<T>(items: T[]) {
+  return {
+    items: items.slice(0, PAGE_LIMIT),
+    total: items.length,
+    truncated: items.length > PAGE_LIMIT,
+  };
+}
+
+function projectMenuItem(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    name: row.name,
+    itemNumber: row.itemNumber,
+    tags: row.tags,
+    type: row.type,
+  };
+}
+
+function projectIngredient(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    name: row.name,
+    itemNumber: row.itemNumber,
+    salable: row.salable,
+  };
+}
+
+function matchesQuery(haystack: (string | undefined)[], needle: string): boolean {
+  const q = needle.toLowerCase();
+  return haystack.some((s) => typeof s === "string" && s.toLowerCase().includes(q));
+}
+
 export function registerDemoTools(
   server: McpServer,
   filter?: ReadonlySet<string> | null
@@ -33,14 +67,44 @@ export function registerDemoTools(
 
   tool(
     "list_menu_items",
-    "List menu items (recipes, subrecipes, ingredients).",
-    { syncTag: z.string().optional().describe("Filter by sync tag name") },
-    async ({ syncTag }) => {
+    `List menu items (recipes, subrecipes, ingredients). Returns up to ${PAGE_LIMIT} with {items, total, truncated}; each item has id, name, itemNumber, tags, type. If truncated, prefer search_menu_items or narrow with syncTag/type.`,
+    {
+      syncTag: z.string().optional().describe("Filter by sync tag name"),
+      type: z
+        .enum(["recipe", "subrecipe", "ingredient"])
+        .optional()
+        .describe("Filter by item type"),
+    },
+    async ({ syncTag, type }) => {
       let items = demo.menuItems;
       if (syncTag) {
         items = items.filter((i) => i.tags.includes(syncTag));
       }
-      return jsonResult(items);
+      if (type) {
+        items = items.filter((i) => i.type === type);
+      }
+      return jsonResult(paged(items.map(projectMenuItem)));
+    }
+  );
+
+  tool(
+    "search_menu_items",
+    `Search menu items by substring in name/itemNumber/tags (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
+    {
+      query: z.string().describe("Substring to match"),
+      type: z
+        .enum(["recipe", "subrecipe", "ingredient"])
+        .optional()
+        .describe("Filter by item type"),
+    },
+    async ({ query, type }) => {
+      const filtered = demo.menuItems.filter((i) => {
+        if (type && i.type !== type) {
+          return false;
+        }
+        return matchesQuery([i.name, i.itemNumber, ...(i.tags ?? [])], query);
+      });
+      return jsonResult(paged(filtered.map(projectMenuItem)));
     }
   );
 
@@ -115,9 +179,34 @@ export function registerDemoTools(
 
   tool(
     "list_ingredients",
-    "List ingredients.",
+    `List ingredients. Returns up to ${PAGE_LIMIT} with {items, total, truncated}; each item has id, name, itemNumber, salable. If truncated, prefer search_ingredients or filter by salable.`,
     { salable: z.boolean().optional().describe("Filter by salable status") },
-    async () => jsonResult(demo.ingredients)
+    async ({ salable }) => {
+      let items = demo.ingredients as ReadonlyArray<Record<string, unknown>>;
+      if (salable !== undefined) {
+        items = items.filter((i) => i.salable === salable);
+      }
+      return jsonResult(paged(items.map(projectIngredient)));
+    }
+  );
+
+  tool(
+    "search_ingredients",
+    `Search ingredients by substring in name/itemNumber (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
+    {
+      query: z.string().describe("Substring to match"),
+      salable: z.boolean().optional().describe("Filter by salable status"),
+    },
+    async ({ query, salable }) => {
+      let items = demo.ingredients as ReadonlyArray<Record<string, unknown>>;
+      if (salable !== undefined) {
+        items = items.filter((i) => i.salable === salable);
+      }
+      const filtered = items.filter((i) =>
+        matchesQuery([i.name as string | undefined, i.itemNumber as string | undefined], query)
+      );
+      return jsonResult(paged(filtered.map(projectIngredient)));
+    }
   );
 
   tool(

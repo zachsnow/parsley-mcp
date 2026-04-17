@@ -5,11 +5,13 @@ const BASE_URL = "https://app.parsleycooks.com/api/public";
 
 export const READ_TOOL_NAMES = [
   "list_menu_items",
+  "search_menu_items",
   "get_menu_item",
   "list_menus",
   "get_menu",
   "get_recipe",
   "list_ingredients",
+  "search_ingredients",
   "get_ingredient",
   "list_events",
   "get_event",
@@ -96,6 +98,55 @@ function jsonResult(data: unknown) {
   };
 }
 
+const PAGE_LIMIT = 20;
+
+function paged<T>(items: T[]) {
+  return {
+    items: items.slice(0, PAGE_LIMIT),
+    total: items.length,
+    truncated: items.length > PAGE_LIMIT,
+  };
+}
+
+type MenuItemRow = {
+  id: number;
+  name: string;
+  itemNumber?: string;
+  tags?: string[];
+  type?: string;
+};
+
+function projectMenuItem(row: MenuItemRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    itemNumber: row.itemNumber,
+    tags: row.tags,
+    type: row.type,
+  };
+}
+
+type IngredientRow = {
+  id: number;
+  name: string;
+  itemNumber?: string;
+  salable?: boolean;
+};
+
+function projectIngredient(row: IngredientRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    itemNumber: row.itemNumber,
+    salable: row.salable,
+  };
+}
+
+function matchesQuery(haystack: (string | undefined)[], needle: string): boolean {
+  const q = needle.toLowerCase();
+  return haystack.some((s) => typeof s === "string" && s.toLowerCase().includes(q));
+}
+
 export function registerTools(
   server: McpServer,
   getToken: () => string,
@@ -122,14 +173,46 @@ export function registerTools(
 
   tool(
     "list_menu_items",
-    "List menu items (recipes, subrecipes, ingredients).",
-    { syncTag: z.string().optional().describe("Filter by sync tag name") },
-    async ({ syncTag }) => {
+    `List menu items (recipes, subrecipes, ingredients). Returns up to ${PAGE_LIMIT} with {items, total, truncated}; each item has id, name, itemNumber, tags, type. If truncated, prefer search_menu_items or narrow with syncTag/type.`,
+    {
+      syncTag: z.string().optional().describe("Filter by sync tag name"),
+      type: z
+        .enum(["recipe", "subrecipe", "ingredient"])
+        .optional()
+        .describe("Filter by item type"),
+    },
+    async ({ syncTag, type }) => {
       const params: Record<string, string> = {};
       if (syncTag) {
         params.syncTag = syncTag;
       }
-      return jsonResult(await apiFetch("/menu_items", { params }));
+      let items = (await apiFetch("/menu_items", { params })) as MenuItemRow[];
+      if (type) {
+        items = items.filter((i) => i.type === type);
+      }
+      return jsonResult(paged(items.map(projectMenuItem)));
+    }
+  );
+
+  tool(
+    "search_menu_items",
+    `Search menu items by substring in name/itemNumber/tags (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
+    {
+      query: z.string().describe("Substring to match"),
+      type: z
+        .enum(["recipe", "subrecipe", "ingredient"])
+        .optional()
+        .describe("Filter by item type"),
+    },
+    async ({ query, type }) => {
+      const all = (await apiFetch("/menu_items")) as MenuItemRow[];
+      const filtered = all.filter((i) => {
+        if (type && i.type !== type) {
+          return false;
+        }
+        return matchesQuery([i.name, i.itemNumber, ...(i.tags ?? [])], query);
+      });
+      return jsonResult(paged(filtered.map(projectMenuItem)));
     }
   );
 
@@ -192,14 +275,33 @@ export function registerTools(
 
   tool(
     "list_ingredients",
-    "List ingredients.",
+    `List ingredients. Returns up to ${PAGE_LIMIT} with {items, total, truncated}; each item has id, name, itemNumber, salable. If truncated, prefer search_ingredients or filter by salable.`,
     { salable: z.boolean().optional().describe("Filter by salable status") },
     async ({ salable }) => {
       const params: Record<string, string> = {};
       if (salable !== undefined) {
         params.salable = String(salable);
       }
-      return jsonResult(await apiFetch("/ingredients", { params }));
+      const items = (await apiFetch("/ingredients", { params })) as IngredientRow[];
+      return jsonResult(paged(items.map(projectIngredient)));
+    }
+  );
+
+  tool(
+    "search_ingredients",
+    `Search ingredients by substring in name/itemNumber (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
+    {
+      query: z.string().describe("Substring to match"),
+      salable: z.boolean().optional().describe("Filter by salable status"),
+    },
+    async ({ query, salable }) => {
+      const params: Record<string, string> = {};
+      if (salable !== undefined) {
+        params.salable = String(salable);
+      }
+      const all = (await apiFetch("/ingredients", { params })) as IngredientRow[];
+      const filtered = all.filter((i) => matchesQuery([i.name, i.itemNumber], query));
+      return jsonResult(paged(filtered.map(projectIngredient)));
     }
   );
 
