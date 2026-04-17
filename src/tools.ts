@@ -8,6 +8,7 @@ export const READ_TOOL_NAMES = [
   "search_menu_items",
   "get_menu_item",
   "list_menus",
+  "search_menus",
   "get_menu",
   "get_recipe",
   "list_ingredients",
@@ -126,6 +127,12 @@ function projectMenuItem(row: MenuItemRow) {
   };
 }
 
+type MenuRow = { id: number; name: string };
+
+function projectMenu(row: MenuRow) {
+  return { id: row.id, name: row.name };
+}
+
 type IngredientRow = {
   id: number;
   name: string;
@@ -236,9 +243,23 @@ export function registerTools(
 
   tool(
     "list_menus",
-    "List menus.",
+    `List menus. Returns up to ${PAGE_LIMIT} with {items, total, truncated}; each item has id, name. If truncated, prefer search_menus.`,
     {},
-    async () => jsonResult(await apiFetch("/menus"))
+    async () => {
+      const items = (await apiFetch("/menus")) as MenuRow[];
+      return jsonResult(paged(items.map(projectMenu)));
+    }
+  );
+
+  tool(
+    "search_menus",
+    `Search menus by substring in name (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
+    { query: z.string().describe("Substring to match") },
+    async ({ query }) => {
+      const all = (await apiFetch("/menus")) as MenuRow[];
+      const filtered = all.filter((m) => matchesQuery([m.name], query));
+      return jsonResult(paged(filtered.map(projectMenu)));
+    }
   );
 
   tool(

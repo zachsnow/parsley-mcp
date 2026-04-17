@@ -134,9 +134,24 @@ export function registerDemoTools(
 
   tool(
     "list_menus",
-    "List menus.",
+    `List menus. Returns up to ${PAGE_LIMIT} with {items, total, truncated}; each item has id, name. If truncated, prefer search_menus.`,
     {},
-    async () => jsonResult(demo.menus)
+    async () => {
+      const items = demo.menus.map((m) => ({ id: m.id, name: m.name }));
+      return jsonResult(paged(items));
+    }
+  );
+
+  tool(
+    "search_menus",
+    `Search menus by substring in name (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
+    { query: z.string().describe("Substring to match") },
+    async ({ query }) => {
+      const filtered = demo.menus
+        .filter((m) => matchesQuery([m.name], query))
+        .map((m) => ({ id: m.id, name: m.name }));
+      return jsonResult(paged(filtered));
+    }
   );
 
   tool(
