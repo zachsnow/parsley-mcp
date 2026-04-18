@@ -159,12 +159,16 @@ function jsonResult(data: unknown) {
 }
 
 const PAGE_LIMIT = 20;
+const MAX_LIMIT = 50;
 
-function paged<T>(items: T[]) {
+function paged<T>(items: T[], offset = 0, limit = PAGE_LIMIT) {
+  const start = Math.max(0, offset);
+  const end = start + Math.min(Math.max(1, limit), MAX_LIMIT);
   return {
-    items: items.slice(0, PAGE_LIMIT),
+    items: items.slice(start, end),
     total: items.length,
-    truncated: items.length > PAGE_LIMIT,
+    offset: start,
+    truncated: items.length > end,
   };
 }
 
@@ -209,7 +213,7 @@ function projectIngredient(row: IngredientRow) {
 }
 
 const FUSE_BASE_OPTIONS = {
-  threshold: 0.3,
+  threshold: 0.2,
   ignoreLocation: true,
 } as const;
 
@@ -299,16 +303,18 @@ export function registerTools(
 
   tool(
     "search_menu_items",
-    `Fuzzy-ranked search of menu items over name/itemNumber/tags (typo-tolerant, multi-token). Returns up to ${PAGE_LIMIT} with {items, total, truncated}, best matches first. Narrow the query if truncated.`,
+    `Fuzzy-ranked search of menu items over name/itemNumber/tags (typo-tolerant, multi-token). Returns {items, total, offset, truncated}, best matches first. Default page size ${PAGE_LIMIT} (max ${MAX_LIMIT}); use offset to page through ranked results.`,
     {
       query: z.string().describe("Search query (fuzzy, multi-token)"),
       type: z
         .enum(["recipe", "subrecipe", "ingredient"])
         .optional()
         .describe("Filter by item type"),
+      offset: z.number().int().min(0).optional().describe("Skip this many ranked results (default 0)"),
+      limit: z.number().int().min(1).max(MAX_LIMIT).optional().describe(`Max items to return (default ${PAGE_LIMIT}, max ${MAX_LIMIT})`),
     },
     READ_ANNO,
-    async ({ query, type }) => {
+    async ({ query, type, offset, limit }) => {
       const all = (await apiFetch("/menu_items")) as MenuItemRow[];
       const scoped = type ? all.filter((i) => i.type === type) : all;
       const ranked = fuseSearch(
@@ -320,7 +326,7 @@ export function registerTools(
         ],
         query
       );
-      return jsonResult(paged(ranked.map(projectMenuItem)));
+      return jsonResult(paged(ranked.map(projectMenuItem), offset, limit));
     }
   );
 
@@ -356,13 +362,17 @@ export function registerTools(
 
   tool(
     "search_menus",
-    `Fuzzy-ranked search of menus by name (typo-tolerant, multi-token). Returns up to ${PAGE_LIMIT} with {items, total, truncated}, best matches first. Narrow the query if truncated.`,
-    { query: z.string().describe("Search query (fuzzy, multi-token)") },
+    `Fuzzy-ranked search of menus by name (typo-tolerant, multi-token). Returns {items, total, offset, truncated}, best matches first. Default page size ${PAGE_LIMIT} (max ${MAX_LIMIT}); use offset to page through ranked results.`,
+    {
+      query: z.string().describe("Search query (fuzzy, multi-token)"),
+      offset: z.number().int().min(0).optional().describe("Skip this many ranked results (default 0)"),
+      limit: z.number().int().min(1).max(MAX_LIMIT).optional().describe(`Max items to return (default ${PAGE_LIMIT}, max ${MAX_LIMIT})`),
+    },
     READ_ANNO,
-    async ({ query }) => {
+    async ({ query, offset, limit }) => {
       const all = (await apiFetch("/menus")) as MenuRow[];
       const ranked = fuseSearch(all, [{ name: "name", weight: 1 }], query);
-      return jsonResult(paged(ranked.map(projectMenu)));
+      return jsonResult(paged(ranked.map(projectMenu), offset, limit));
     }
   );
 
@@ -417,13 +427,15 @@ export function registerTools(
 
   tool(
     "search_ingredients",
-    `Fuzzy-ranked search of ingredients over name/itemNumber (typo-tolerant, multi-token). Returns up to ${PAGE_LIMIT} with {items, total, truncated}, best matches first. Narrow the query if truncated.`,
+    `Fuzzy-ranked search of ingredients over name/itemNumber (typo-tolerant, multi-token). Returns {items, total, offset, truncated}, best matches first. Default page size ${PAGE_LIMIT} (max ${MAX_LIMIT}); use offset to page through ranked results.`,
     {
       query: z.string().describe("Search query (fuzzy, multi-token)"),
       salable: z.boolean().optional().describe("Filter by salable status"),
+      offset: z.number().int().min(0).optional().describe("Skip this many ranked results (default 0)"),
+      limit: z.number().int().min(1).max(MAX_LIMIT).optional().describe(`Max items to return (default ${PAGE_LIMIT}, max ${MAX_LIMIT})`),
     },
     READ_ANNO,
-    async ({ query, salable }) => {
+    async ({ query, salable, offset, limit }) => {
       const params: Record<string, string> = {};
       if (salable !== undefined) {
         params.salable = String(salable);
@@ -437,7 +449,7 @@ export function registerTools(
         ],
         query
       );
-      return jsonResult(paged(ranked.map(projectIngredient)));
+      return jsonResult(paged(ranked.map(projectIngredient), offset, limit));
     }
   );
 
