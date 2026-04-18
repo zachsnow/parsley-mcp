@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import Fuse, { type IFuseOptions } from "fuse.js";
 import { z } from "zod";
 
 const BASE_URL = "https://app.parsleycooks.com/api/public";
@@ -207,9 +208,18 @@ function projectIngredient(row: IngredientRow) {
   };
 }
 
-function matchesQuery(haystack: (string | undefined)[], needle: string): boolean {
-  const q = needle.toLowerCase();
-  return haystack.some((s) => typeof s === "string" && s.toLowerCase().includes(q));
+const FUSE_BASE_OPTIONS = {
+  threshold: 0.3,
+  ignoreLocation: true,
+} as const;
+
+function fuseSearch<T>(
+  items: T[],
+  keys: IFuseOptions<T>["keys"],
+  query: string
+): T[] {
+  const fuse = new Fuse(items, { ...FUSE_BASE_OPTIONS, keys });
+  return fuse.search(query).map((r) => r.item);
 }
 
 export function registerTools(
@@ -289,9 +299,9 @@ export function registerTools(
 
   tool(
     "search_menu_items",
-    `Search menu items by substring in name/itemNumber/tags (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
+    `Fuzzy-ranked search of menu items over name/itemNumber/tags (typo-tolerant, multi-token). Returns up to ${PAGE_LIMIT} with {items, total, truncated}, best matches first. Narrow the query if truncated.`,
     {
-      query: z.string().describe("Substring to match"),
+      query: z.string().describe("Search query (fuzzy, multi-token)"),
       type: z
         .enum(["recipe", "subrecipe", "ingredient"])
         .optional()
@@ -300,13 +310,17 @@ export function registerTools(
     READ_ANNO,
     async ({ query, type }) => {
       const all = (await apiFetch("/menu_items")) as MenuItemRow[];
-      const filtered = all.filter((i) => {
-        if (type && i.type !== type) {
-          return false;
-        }
-        return matchesQuery([i.name, i.itemNumber, ...(i.tags ?? [])], query);
-      });
-      return jsonResult(paged(filtered.map(projectMenuItem)));
+      const scoped = type ? all.filter((i) => i.type === type) : all;
+      const ranked = fuseSearch(
+        scoped,
+        [
+          { name: "name", weight: 2 },
+          { name: "itemNumber", weight: 1.5 },
+          { name: "tags", weight: 1 },
+        ],
+        query
+      );
+      return jsonResult(paged(ranked.map(projectMenuItem)));
     }
   );
 
@@ -342,13 +356,13 @@ export function registerTools(
 
   tool(
     "search_menus",
-    `Search menus by substring in name (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
-    { query: z.string().describe("Substring to match") },
+    `Fuzzy-ranked search of menus by name (typo-tolerant, multi-token). Returns up to ${PAGE_LIMIT} with {items, total, truncated}, best matches first. Narrow the query if truncated.`,
+    { query: z.string().describe("Search query (fuzzy, multi-token)") },
     READ_ANNO,
     async ({ query }) => {
       const all = (await apiFetch("/menus")) as MenuRow[];
-      const filtered = all.filter((m) => matchesQuery([m.name], query));
-      return jsonResult(paged(filtered.map(projectMenu)));
+      const ranked = fuseSearch(all, [{ name: "name", weight: 1 }], query);
+      return jsonResult(paged(ranked.map(projectMenu)));
     }
   );
 
@@ -403,9 +417,9 @@ export function registerTools(
 
   tool(
     "search_ingredients",
-    `Search ingredients by substring in name/itemNumber (case-insensitive). Returns up to ${PAGE_LIMIT} with {items, total, truncated}. Narrow the query if truncated.`,
+    `Fuzzy-ranked search of ingredients over name/itemNumber (typo-tolerant, multi-token). Returns up to ${PAGE_LIMIT} with {items, total, truncated}, best matches first. Narrow the query if truncated.`,
     {
-      query: z.string().describe("Substring to match"),
+      query: z.string().describe("Search query (fuzzy, multi-token)"),
       salable: z.boolean().optional().describe("Filter by salable status"),
     },
     READ_ANNO,
@@ -415,8 +429,15 @@ export function registerTools(
         params.salable = String(salable);
       }
       const all = (await apiFetch("/ingredients", { params })) as IngredientRow[];
-      const filtered = all.filter((i) => matchesQuery([i.name, i.itemNumber], query));
-      return jsonResult(paged(filtered.map(projectIngredient)));
+      const ranked = fuseSearch(
+        all,
+        [
+          { name: "name", weight: 2 },
+          { name: "itemNumber", weight: 1.5 },
+        ],
+        query
+      );
+      return jsonResult(paged(ranked.map(projectIngredient)));
     }
   );
 
